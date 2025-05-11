@@ -1,0 +1,28 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            /** 
+             * ms-vscode.cmake-tools plugin should be installed.
+             * 
+             * It provides data for C/C++ plugin,
+             * such as include paths, browse paths, defines, etc.
+             */
+            "name": "STM32",
+            "configurationProvider": "ms-vscode.cmake-tools",
+            "intelliSenseMode": "${default}",
+            "includePath": [
+                "${workspaceFolder}**",
+                "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc",
+                "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy",
+                "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32F4xx/Include",
+                "${workspaceFolder}/Core/Inc"
+            ],
+            "compilerPath": "D:\\ST\\STM32CubeCLT_1.18.0\\GNU-tools-for-STM32\\bin\\arm-none-eabi-gcc.exe",
+            "defines": [
+                "USE_HAL_DRIVER",
+                "STM32F401xC"
+            ]
+        }
+    ]
+}
