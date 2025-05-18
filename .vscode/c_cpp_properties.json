@@ -16,7 +16,8 @@
                 "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc",
                 "${workspaceFolder}/Drivers/STM32F4xx_HAL_Driver/Inc/Legacy",
                 "${workspaceFolder}/Drivers/CMSIS/Device/ST/STM32F4xx/Include",
-                "${workspaceFolder}/Core/Inc"
+                "${workspaceFolder}/Core/Inc",
+                "${workspaceFolder}/User/Inc"
             ],
             "compilerPath": "D:\\ST\\STM32CubeCLT_1.18.0\\GNU-tools-for-STM32\\bin\\arm-none-eabi-gcc.exe",
             "defines": [
