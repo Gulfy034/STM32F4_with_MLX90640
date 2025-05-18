@@ -1,8 +1,8 @@
 /* USER CODE BEGIN Header */
 /**
  ******************************************************************************
- * @file           : main.c
- * @brief          : Main program body
+ * @file           : 使用stm32f401rct6作为从机
+ * @brief          : main.c主程序入口
  ******************************************************************************
  * @attention
  *
@@ -18,14 +18,19 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "i2c.h"
+#include "rtc.h"
 #include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "tempra.h"
+#include "motor.h"
+#include "receive.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,24 +63,8 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-uint8_t data_buf[1544];
-
-int fputc(int ch)
-{
-  uint8_t temp[1] = {ch};
-  HAL_UART_Transmit(&huart2, temp, 1, 2);
-};
-
-float myMap(float x, float in_min, float in_max, float out_min, float out_max)
-{
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-};
-
-uint8_t receive_buf;
-
 /*
 MCU:stm32f401RCT6
-
 usart2_rx-----mlx90640_tx
 usart1_tx-----ft232_rx
 */
@@ -83,17 +72,14 @@ usart1_tx-----ft232_rx
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  int16_t temp = 0, rest_count = 0;
-  float Temperature = 0;
-  float min_temp = 500, max_temp = 0;
-  int state = 0;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -114,105 +100,74 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_I2C3_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   MX_SPI1_Init();
+  MX_I2C1_Init();
+  MX_USART1_UART_Init();
+  MX_RTC_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
-  //uart 接受0-1543byte的数据
-  HAL_UART_Receive_IT(&huart2, (uint8_t *)receive_buf, 1544);
-  
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-
-    //自检状态
-    if (state != 1)
-      continue;
-    state = 0;
-
-    //检查buffer
-    if (Check(data_buf))
+    receive();
+    // 此处实现电机启停
+    if (allow == 0 && tempra == 0) // 判断从机的报警数值和热成像符合条件
     {
-      //byte4-1539,循环768个点的温度数据
-      //注意温度数据均为放大100倍输出，所以要除以100
-
-      for (int i = 0; i < 768;)
-      {
-        temp = ((int16_t)data_buf[i * 2 + 1 + 4] << 8 | data_buf[i * 2 + 4]);
-        Temperature = (float)temp / 100;
-        printf(" %.2f", Temperature);
-        i++;
-        if ((i % 32) == 0 && i > 0)
-          printf(" \r\n");
-      }
-
-      printf("\r\n");
-
-      for (uint16_t y = 0; y < 24; y++)
-      {
-        for (uint16_t x = 4; x < 64 + 4; x = x + 2)
-        {
-          temp = ((int16_t)data_buf[x + 1 + 64 * y] << 8 | data_buf[x + 64 * y]);
-          Temperature = (float)temp / 100;
-          if (Temperature > max_temp)
-            max_temp = Temperature;
-          if (Temperature < min_temp)
-            min_temp = Temperature;
-          if (rest_count > 20)
-          {
-            min_temp = 500;
-            max_temp = 0;
-            rest_count = 0;
-          }
-          float inv = myMap(Temperature, min_temp, max_temp, 0.5, 1);
-          if (inv > 0.75)
-            printf("**");
-          else
-            printf("--");
-        }
-        printf("\r\n");
-      }
-      rest_count++;
-      printf("\r\n");
+      // 电机启动
+      ALL_MOTOR_START();
+      // TODO: 此处tim3实现pwm调速
     }
-    HAL_Delay(1000);
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
+    else if (allow == 1 && tempra == 0)
+    {
+      // 手动触发报警，电机停止
+      ALL_MOTOR_STOP();
+    }
+    else if (allow == 1 && tempra == 1)
+    {
+      // 触发报警，电机停止
+      ALL_MOTOR_STOP();
+    }
   }
+  /* USER CODE END WHILE */
+
+  /* USER CODE BEGIN 3 */
+
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 168;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLN = 60;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -220,15 +175,14 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -239,9 +193,9 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -253,14 +207,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

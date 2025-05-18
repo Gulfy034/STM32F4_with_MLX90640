@@ -57,6 +57,18 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define MOTOR_EN_Pin GPIO_PIN_1
+#define MOTOR_EN_GPIO_Port GPIOC
+#define CH340_serial_TX_Pin GPIO_PIN_9
+#define CH340_serial_TX_GPIO_Port GPIOA
+#define CH340_serial_RX_Pin GPIO_PIN_10
+#define CH340_serial_RX_GPIO_Port GPIOA
+#define Board_LED_G_Pin GPIO_PIN_12
+#define Board_LED_G_GPIO_Port GPIOC
+#define MLX90640_SCL_Pin GPIO_PIN_6
+#define MLX90640_SCL_GPIO_Port GPIOB
+#define MLX90640_SDA_Pin GPIO_PIN_7
+#define MLX90640_SDA_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
